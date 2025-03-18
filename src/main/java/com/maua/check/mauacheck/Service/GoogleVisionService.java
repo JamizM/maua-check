@@ -1,9 +1,12 @@
 package com.maua.check.mauacheck.Service;
 
 import com.google.cloud.vision.v1.*;
-import com.google.protobuf.ByteString;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.BlobInfo;
+import com.google.cloud.storage.Storage;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -13,17 +16,36 @@ import java.util.List;
 public class GoogleVisionService {
 
     private final ImageAnnotatorClient visionClient;
+    private final Storage storage;
 
-    public GoogleVisionService(ImageAnnotatorClient visionClient) {
+    @Autowired
+    public GoogleVisionService(ImageAnnotatorClient visionClient, Storage storage) {
         this.visionClient = visionClient;
+        this.storage = storage;
     }
 
-    public String extractTextFromImage(MultipartFile file) throws IOException {
-        ByteString imgBytes = ByteString.copyFrom(file.getBytes());
-        Image img = Image.newBuilder().setContent(imgBytes).build();
-        Feature feature = Feature.newBuilder().setType(Feature.Type.TEXT_DETECTION).build();
+    public String uploadImageToGCS(MultipartFile file, String bucketName) throws IOException {
+        String blobName = file.getOriginalFilename();
+        assert blobName != null;
+        BlobId blobId = BlobId.of(bucketName, blobName);
+        BlobInfo blobInfo = BlobInfo.newBuilder(blobId).setContentType(file.getContentType()).build();
+        storage.create(blobInfo, file.getBytes());
+        return String.format("gs://%s/%s", bucketName, blobName);
+    }
+
+    public String analyzeImage(MultipartFile file, String bucketName) throws IOException {
+        String imageUri = uploadImageToGCS(file, bucketName);
+
+        ImageSource imgSource = ImageSource.newBuilder().setImageUri(imageUri).build();
+        Image img = Image.newBuilder().setSource(imgSource).build();
+
+        List<Feature> features = new ArrayList<>();
+        features.add(Feature.newBuilder().setType(Feature.Type.LABEL_DETECTION).setMaxResults(3).build());
+        features.add(Feature.newBuilder().setType(Feature.Type.OBJECT_LOCALIZATION).setMaxResults(1).build());
+        features.add(Feature.newBuilder().setType(Feature.Type.TEXT_DETECTION).setMaxResults(1).setModel("builtin/latest").build());
+
         AnnotateImageRequest request = AnnotateImageRequest.newBuilder()
-                .addFeatures(feature)
+                .addAllFeatures(features)
                 .setImage(img)
                 .build();
 
@@ -33,13 +55,6 @@ public class GoogleVisionService {
         BatchAnnotateImagesResponse response = visionClient.batchAnnotateImages(requests);
         List<AnnotateImageResponse> responses = response.getResponsesList();
 
-        StringBuilder extractedText = new StringBuilder();
-        for (AnnotateImageResponse res : responses) {
-            if (res.hasError()) {
-                return "Erro ao processar a imagem: " + res.getError().getMessage();
-            }
-            extractedText.append(res.getTextAnnotationsList().getFirst().getDescription());
-        }
-        return extractedText.toString();
+        return responses.toString();
     }
 }

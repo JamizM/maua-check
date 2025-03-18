@@ -9,6 +9,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 
 @RestController
+@RequestMapping("/vision")
 public class GoogleVisionController {
 
     private final GoogleVisionService googleVisionService;
@@ -18,13 +19,14 @@ public class GoogleVisionController {
         this.googleVisionService = googleVisionService;
     }
 
-    @PostMapping("/extract-text")
-    public ResponseEntity<String> extractText(@RequestParam("file") MultipartFile file) {
+    @GetMapping("/analyze-image") //tem que ser GetMapping
+    public ResponseEntity<String> analyzeImage(@RequestParam("file") MultipartFile file) {
         try {
-            String extractedText = googleVisionService.extractTextFromImage(file);
-            return ResponseEntity.ok(extractedText);
+            String bucketName = "bucket_api_vision";
+            String result = googleVisionService.analyzeImage(file, bucketName);
+            return ResponseEntity.ok(result);
         } catch (IOException e) {
-            return ResponseEntity.badRequest().body("Erro ao processar a imagem.");
+            return ResponseEntity.badRequest().body("Error processing image.");
         }
     }
 }
