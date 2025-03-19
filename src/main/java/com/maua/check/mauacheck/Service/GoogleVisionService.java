@@ -55,6 +55,28 @@ public class GoogleVisionService {
         BatchAnnotateImagesResponse response = visionClient.batchAnnotateImages(requests);
         List<AnnotateImageResponse> responses = response.getResponsesList();
 
-        return responses.toString();
+        return filterResponse(responses);
+    }
+
+    private String filterResponse(List<AnnotateImageResponse> responses) {
+        StringBuilder result = new StringBuilder();
+
+        for (AnnotateImageResponse res : responses) {
+            if (res.hasError()) {
+                result.append("Error: ").append(res.getError().getMessage()).append("\n");
+                continue;
+            }
+
+            for (EntityAnnotation annotation : res.getLabelAnnotationsList()) {
+                result.append("Label: ").append(annotation.getDescription())
+                        .append(" (Score: ").append(annotation.getScore()).append(")\n");
+            }
+
+            for (EntityAnnotation annotation : res.getTextAnnotationsList()) {
+                result.append("Text: ").append(annotation.getDescription()).append("\n");
+            }
+        }
+
+        return result.toString();
     }
 }
