@@ -6,5 +6,7 @@ public interface LicensePlateService {
 
     boolean checkIfLicensePlateExists(String licensePlate);
 
-    void storeResponseInBucket(String jsonResponse, String licensePlate);
+    void storeResponseInBucket(String jsonResponse, String licensePlate, String fileHash);
+
+    boolean checkIfImageExists(String fileHash);
 }

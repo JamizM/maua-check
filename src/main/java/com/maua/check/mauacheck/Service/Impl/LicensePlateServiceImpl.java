@@ -3,7 +3,6 @@ package com.maua.check.mauacheck.Service.Impl;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.Bucket;
 import com.google.cloud.storage.Storage;
-import com.google.cloud.storage.StorageOptions;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -18,6 +17,12 @@ public class LicensePlateServiceImpl implements LicensePlateService {
     @Value("${gcp.bucket.name}")
     private String bucketName;
 
+    private final Storage storage;
+
+    public LicensePlateServiceImpl(Storage storage) {
+        this.storage = storage;
+    }
+
     @Override
     public String extractLicensePlate(String jsonResponse) {
         JsonObject jsonObject = JsonParser.parseString(jsonResponse).getAsJsonObject();
@@ -26,7 +31,7 @@ public class LicensePlateServiceImpl implements LicensePlateService {
         for (JsonElement element : textAnnotations) {
             JsonObject annotation = element.getAsJsonObject();
             String description = annotation.get("description").getAsString();
-            if (description.matches("^[A-Z0-9]{6,8}$")) {
+            if (description.matches("^[A-Z0-9]{6,8}$")) { //aqui faz a verificação da placa do carro
                 return description;
             }
         }
@@ -35,7 +40,6 @@ public class LicensePlateServiceImpl implements LicensePlateService {
 
     @Override
     public boolean checkIfLicensePlateExists(String licensePlate) {
-        Storage storage = StorageOptions.getDefaultInstance().getService();
         Bucket bucket = storage.get(this.bucketName);
 
         for (Blob blob : bucket.list().iterateAll()) {
@@ -47,9 +51,25 @@ public class LicensePlateServiceImpl implements LicensePlateService {
     }
 
     @Override
-    public void storeResponseInBucket(String jsonResponse, String licensePlate) {
-        Storage storage = StorageOptions.getDefaultInstance().getService();
+    public void storeResponseInBucket(String jsonResponse, String licensePlate, String fileHash) {
+        if (checkIfLicensePlateExists(licensePlate)) {
+            throw new IllegalStateException("License plate already exists in the bucket");
+        }
+
         Bucket bucket = storage.get(this.bucketName);
-        bucket.create(licensePlate + ".json", jsonResponse.getBytes());
+        String fileName = licensePlate + "_" + fileHash + ".json";
+        bucket.create(fileName, jsonResponse.getBytes());
+    }
+
+    @Override
+    public boolean checkIfImageExists(String fileHash) {
+        Bucket bucket = storage.get(this.bucketName);
+
+        for (Blob blob : bucket.list().iterateAll()) {
+            if (blob.getName().contains(fileHash)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
