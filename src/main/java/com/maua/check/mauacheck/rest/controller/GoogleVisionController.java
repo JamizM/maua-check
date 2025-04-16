@@ -32,23 +32,6 @@ public class GoogleVisionController {
     @GetMapping("/analyze-image")
     public ResponseEntity<String> analyzeImage(@RequestParam("file") MultipartFile file) {
         try {
-            // Gera um UUID para substituir o nome do arquivo
-            String uuid = UUID.randomUUID().toString();
-            String originalFilename = file.getOriginalFilename();
-            String extension = originalFilename != null && originalFilename.contains(".") ?
-                    originalFilename.substring(originalFilename.lastIndexOf(".")) : "";
-            String newFilename = uuid + extension; //arquivo que recebe um uuid novo, nao como enviado no request
-
-            String result = googleVisionService.analyzeImage(file, bucketName, newFilename);
-            return ResponseEntity.ok(result);
-        } catch (IOException e) {
-            return ResponseEntity.badRequest().body("Error processing image.");
-        }
-    }
-
-    @PostMapping("/check-and-store")
-    public ResponseEntity<String> checkAndStore(@RequestParam("file") MultipartFile file) {
-        try {
             String fileHash = generateFileHash(file);
 
             boolean imageExists = licensePlateService.checkIfImageExists(fileHash);
@@ -60,7 +43,7 @@ public class GoogleVisionController {
             String originalFilename = file.getOriginalFilename();
             String extension = originalFilename != null && originalFilename.contains(".") ?
                     originalFilename.substring(originalFilename.lastIndexOf(".")) : "";
-            String newFilename = uuid + extension; //arquivo que recebe um uuid novo, nao como enviado no request
+            String newFilename = uuid + extension;
 
             String jsonResponse = googleVisionService.analyzeImage(file, bucketName, newFilename);
 
@@ -70,8 +53,8 @@ public class GoogleVisionController {
                 boolean plateExists = licensePlateService.checkIfLicensePlateExists(licensePlate);
 
                 if (!plateExists) {
-                    licensePlateService.storeResponseInBucket(jsonResponse, licensePlate, fileHash);
-                    return ResponseEntity.ok("License plate stored successfully.");
+                    licensePlateService.storeResponseInBucket(licensePlate, fileHash);
+                    return ResponseEntity.ok("License plate stored successfully: " + licensePlate);
                 } else {
                     return ResponseEntity.badRequest().body("License plate already exists.");
                 }
