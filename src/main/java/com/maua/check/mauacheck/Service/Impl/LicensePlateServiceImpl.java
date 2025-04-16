@@ -3,13 +3,13 @@ package com.maua.check.mauacheck.Service.Impl;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.Bucket;
 import com.google.cloud.storage.Storage;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import com.google.gson.*;
+import com.google.gson.stream.JsonReader;
 import com.maua.check.mauacheck.Service.LicensePlateService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
+import java.io.StringReader;
 
 @Service
 public class LicensePlateServiceImpl implements LicensePlateService {
@@ -21,20 +21,50 @@ public class LicensePlateServiceImpl implements LicensePlateService {
 
     public LicensePlateServiceImpl(Storage storage) {
         this.storage = storage;
+        Gson gson = new GsonBuilder().create();
     }
 
-    @Override
     public String extractLicensePlate(String jsonResponse) {
-        JsonObject jsonObject = JsonParser.parseString(jsonResponse).getAsJsonObject();
-        JsonArray textAnnotations = jsonObject.getAsJsonArray("text_annotations");
-
-        for (JsonElement element : textAnnotations) {
-            JsonObject annotation = element.getAsJsonObject();
-            String description = annotation.get("description").getAsString();
-            if (description.matches("^[A-Z0-9]{6,8}$")) { //aqui faz a verificação da placa do carro
-                return description;
-            }
+        if (jsonResponse == null || jsonResponse.trim().isEmpty()) {
+            throw new IllegalArgumentException("The input JSON response is null or empty");
         }
+
+        try {
+            StringBuilder jsonBuilder = new StringBuilder();
+            jsonBuilder.append("{ \"response\": [");
+
+            String[] lines = jsonResponse.split("\n");
+            for (int i = 0; i < lines.length; i++) {
+                jsonBuilder.append("\"").append(lines[i].replace("\"", "\\\"")).append("\"");
+                if (i < lines.length - 1) {
+                    jsonBuilder.append(",");
+                }
+            }
+
+            jsonBuilder.append("] }");
+
+            JsonReader reader = new JsonReader(new StringReader(jsonBuilder.toString()));
+            reader.setLenient(true);
+
+            JsonElement jsonElement = JsonParser.parseReader(reader);
+            if (!jsonElement.isJsonObject()) {
+                throw new IllegalStateException("Response is not a JSON object");
+            }
+
+            JsonObject jsonObject = jsonElement.getAsJsonObject();
+            JsonArray responseArray = jsonObject.getAsJsonArray("response");
+
+            for (JsonElement element : responseArray) {
+                String line = element.getAsString().trim();
+                if (line.matches("^[A-Z]{3}-?\\d{4}$") || line.matches("^[A-Z]{3}\\d[A-Z]\\d{2}$")) { //verificao da placa do carro
+                    return line;
+                }
+            }
+        } catch (JsonSyntaxException | IllegalStateException e) {
+            System.err.println("Error parsing JSON response: " + e.getMessage());
+            throw new IllegalArgumentException("Invalid JSON response format", e);
+        }
+
         return null;
     }
 
@@ -51,14 +81,14 @@ public class LicensePlateServiceImpl implements LicensePlateService {
     }
 
     @Override
-    public void storeResponseInBucket(String jsonResponse, String licensePlate, String fileHash) {
+    public void storeResponseInBucket(String licensePlate, String fileHash) {
         if (checkIfLicensePlateExists(licensePlate)) {
             throw new IllegalStateException("License plate already exists in the bucket");
         }
 
         Bucket bucket = storage.get(this.bucketName);
-        String fileName = licensePlate + "_" + fileHash + ".json";
-        bucket.create(fileName, jsonResponse.getBytes());
+        String fileName = licensePlate + "_" + fileHash + ".txt";
+        bucket.create(fileName, licensePlate.getBytes());
     }
 
     @Override
