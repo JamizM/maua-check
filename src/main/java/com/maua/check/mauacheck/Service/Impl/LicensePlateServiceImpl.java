@@ -36,6 +36,8 @@ public class LicensePlateServiceImpl implements LicensePlateService {
             StringBuilder jsonBuilder = new StringBuilder();
             jsonBuilder.append("{ \"response\": [");
 
+            assert jsonResponse != null;
+
             String[] lines = jsonResponse.split("\n");
             for (int i = 0; i < lines.length; i++) {
                 jsonBuilder.append("\"").append(lines[i].replace("\"", "\\\"")).append("\"");
@@ -84,23 +86,24 @@ public class LicensePlateServiceImpl implements LicensePlateService {
     }
 
     @Override
-    public void storeResponseInBucket(String licensePlate, String fileHash) {
-        if (checkIfLicensePlateExists(licensePlate)) {
+    public void storeResponseInBucket(String licensePlate) {
+        if (checkIfLicensePlateExists(licensePlate) || checkIfImageExists(licensePlate)) {
             System.out.println("License plate already exists in the bucket");
             return;
         }
 
         Bucket bucket = storage.get(this.bucketName);
-        String fileName = licensePlate + "_" + fileHash + ".txt";
+        String fileName = licensePlate + ".txt";
         bucket.create(fileName, licensePlate.getBytes());
     }
 
     @Override
-    public boolean checkIfImageExists(String fileHash) {
+    public boolean checkIfImageExists(String licensePlate) {
         Bucket bucket = storage.get(this.bucketName);
 
         for (Blob blob : bucket.list().iterateAll()) {
-            if (blob.getName().contains(fileHash)) {
+            if (blob.getName().contains(licensePlate)) {
+                System.out.println("Placa já existe no bucket");
                 return true;
             }
         }

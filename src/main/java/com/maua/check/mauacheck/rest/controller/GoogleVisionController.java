@@ -53,7 +53,7 @@ public class GoogleVisionController {
                 boolean plateExists = licensePlateService.checkIfLicensePlateExists(licensePlate);
 
                 if (!plateExists) {
-                    licensePlateService.storeResponseInBucket(licensePlate, fileHash);
+                    licensePlateService.storeResponseInBucket(licensePlate);
                     return ResponseEntity.ok("License plate stored successfully: " + licensePlate);
                 } else {
                     return ResponseEntity.badRequest().body("License plate already exists.");

@@ -14,11 +14,16 @@ import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
 
 @Service
 public class RealTimePlateProcessor {
+
+    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd_HH");
 
     private final Set<String> processedHashes = new HashSet<>();
     private final GoogleVisionServiceImpl googleVisionService;
@@ -53,30 +58,33 @@ public class RealTimePlateProcessor {
                     ImageIO.write(image, "jpg", baos);
                     byte[] imageBytes = baos.toByteArray();
 
-                    String uniqueFileName = "frame_" + System.currentTimeMillis() + ".jpg";
-
                     MultipartFile multipartFile = new MockMultipartFile(
-                            "file", uniqueFileName, "image/jpeg", imageBytes
+                            "file", "temp.jpg", "image/jpeg", imageBytes
                     );
 
                     // Análise da imagem para detectar texto
-                    if (!plateDetected) {
-                        String detectedText = googleVisionService.analyzeImage(multipartFile, bucketName, uniqueFileName);
-                        String licensePlate = licensePlateService.extractLicensePlate(detectedText);
+                    String detectedText = googleVisionService.analyzeImage(multipartFile, bucketName, "temp.jpg");
+                    String licensePlate = licensePlateService.extractLicensePlate(detectedText);
 
-                        if (licensePlate != null) {
-                            System.out.println("Placa detectada: " + licensePlate);
+                    if (licensePlate != null) {
+                        String uniqueFileName = licensePlate + "_" + LocalDateTime.now().format(formatter) + ".jpg";
 
-                            // Envia a imagem e o texto ao bucket
-                            licensePlateService.storeResponseInBucket(licensePlate, uniqueFileName);
+                        // Verifica se a placa já existe no bucket
+                        if (!licensePlateService.checkIfLicensePlateExists(licensePlate)) {
+                            licensePlateService.storeResponseInBucket(licensePlate);
 
-                            googleVisionService.uploadImageToGCS(multipartFile, bucketName);
+                            googleVisionService.uploadImageToGCS(
+                                    new MockMultipartFile("file", uniqueFileName, "image/jpeg", imageBytes),
+                                    bucketName
+                            );
 
-                            plateDetected = true;
+                            System.out.println("Placa detectada e processada: " + licensePlate);
+                        } else {
+                            System.out.println("Placa duplicada detectada: " + licensePlate);
                         }
                     }
 
-                    Thread.sleep(500); // Ajuste o intervalo entre capturas, se necessário
+                    Thread.sleep(1000); // Ajuste o intervalo entre capturas, se necessário
                 }
 
                 grabber.stop();
