@@ -5,7 +5,10 @@ import com.google.cloud.storage.Bucket;
 import com.google.cloud.storage.Storage;
 import com.google.gson.*;
 import com.google.gson.stream.JsonReader;
+
 import com.maua.check.mauacheck.Service.LicensePlateService;
+import com.maua.check.mauacheck.exception.RegraDeNegocioException;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -26,7 +29,7 @@ public class LicensePlateServiceImpl implements LicensePlateService {
 
     public String extractLicensePlate(String jsonResponse) {
         if (jsonResponse == null || jsonResponse.trim().isEmpty()) {
-            throw new IllegalArgumentException("The input JSON response is null or empty");
+            System.out.println("The input JSON response is null or empty");
         }
 
         try {
@@ -48,7 +51,7 @@ public class LicensePlateServiceImpl implements LicensePlateService {
 
             JsonElement jsonElement = JsonParser.parseReader(reader);
             if (!jsonElement.isJsonObject()) {
-                throw new IllegalStateException("Response is not a JSON object");
+                System.out.println("Response is not a JSON object");
             }
 
             JsonObject jsonObject = jsonElement.getAsJsonObject();
@@ -56,7 +59,7 @@ public class LicensePlateServiceImpl implements LicensePlateService {
 
             for (JsonElement element : responseArray) {
                 String line = element.getAsString().trim();
-                if (line.matches("^[A-Z]{3}-?\\d{4}$") || line.matches("^[A-Z]{3}\\d[A-Z]\\d{2}$")) { //verificao da placa do carro
+                if (line.matches("^[A-Z]{3}\\s?-?\\d{4}$") || line.matches("^[A-Z]{3}\\d[A-Z]\\d{2}$")) { //verificao da placa do carro
                     return line;
                 }
             }
@@ -83,7 +86,8 @@ public class LicensePlateServiceImpl implements LicensePlateService {
     @Override
     public void storeResponseInBucket(String licensePlate, String fileHash) {
         if (checkIfLicensePlateExists(licensePlate)) {
-            throw new IllegalStateException("License plate already exists in the bucket");
+            System.out.println("License plate already exists in the bucket");
+            return;
         }
 
         Bucket bucket = storage.get(this.bucketName);

@@ -43,8 +43,8 @@ public class GoogleVisionServiceImpl implements GoogleVisionService {
         Image img = Image.newBuilder().setSource(imgSource).build();
 
         List<Feature> features = new ArrayList<>();
-        features.add(Feature.newBuilder().setType(Feature.Type.LABEL_DETECTION).setMaxResults(3).build());
-        features.add(Feature.newBuilder().setType(Feature.Type.OBJECT_LOCALIZATION).setMaxResults(1).build());
+        features.add(Feature.newBuilder().setType(Feature.Type.LABEL_DETECTION).setMaxResults(1).build());
+        features.add(Feature.newBuilder().setType(Feature.Type.OBJECT_LOCALIZATION).setMaxResults(1).build()); //pode fazer a detecção do automovel
         features.add(Feature.newBuilder().setType(Feature.Type.TEXT_DETECTION).setMaxResults(1).setModel("builtin/latest").build());
 
         AnnotateImageRequest request = AnnotateImageRequest.newBuilder()
