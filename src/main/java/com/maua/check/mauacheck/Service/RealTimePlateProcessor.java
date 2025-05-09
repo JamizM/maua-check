@@ -1,5 +1,11 @@
 package com.maua.check.mauacheck.Service;
 
+import com.google.api.core.ApiFuture;
+import com.google.cloud.firestore.DocumentSnapshot;
+import com.google.cloud.firestore.Firestore;
+import com.google.firebase.cloud.FirestoreClient;
+import com.maua.check.mauacheck.domain.entity.Aluno;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
 import java.io.ByteArrayOutputStream;
@@ -15,15 +21,16 @@ import org.springframework.stereotype.Service;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
+@Slf4j
 @Service
 public class RealTimePlateProcessor {
 
-    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd_HH");
+    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss" , Locale.getDefault());
 
     private final Set<String> processedHashes = new HashSet<>();
     private final GoogleVisionServiceImpl googleVisionService;
@@ -67,20 +74,58 @@ public class RealTimePlateProcessor {
                     String licensePlate = licensePlateService.extractLicensePlate(detectedText);
 
                     if (licensePlate != null) {
-                        String uniqueFileName = licensePlate + "_" + LocalDateTime.now().format(formatter) + ".jpg";
+
+                        LocalDateTime data = LocalDateTime.now();
+                        String horarioISO = data.atZone(ZoneId.of("America/Sao_Paulo")).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+                        OffsetDateTime offsetDateTime = OffsetDateTime.parse(horarioISO);
+                        String horario = offsetDateTime.format(formatter);
+
+                        String uniqueFileName = licensePlate + "_" + data.format(formatter) + ".jpg";
 
                         // Verifica se a placa já existe no bucket
-                        if (!licensePlateService.checkIfLicensePlateExists(licensePlate)) {
+                        if (licensePlateService.checkIfLicensePlateExists(licensePlate)) {
                             licensePlateService.storeResponseInBucket(licensePlate);
 
-                            googleVisionService.uploadImageToGCS(
+                            String imageUrl = googleVisionService.uploadImageToGCS(
                                     new MockMultipartFile("file", uniqueFileName, "image/jpeg", imageBytes),
+                                    bucketName
+                            );
+
+                            Aluno Student = new Aluno();
+                            Student.setHorario(horario);
+                            Student.setImageUrl(imageUrl);
+
+                            Map<String, Object> dataStudent = new HashMap<>();
+                            dataStudent.put("horario", Student.getHorario());
+                            dataStudent.put("imageUrl", Student.getImageUrl());
+
+                            //Altera os campos horario e imageUrl no firestore database
+                            Firestore dbFirestore = FirestoreClient.getFirestore(); //variavel que acessa o firebase
+                            var docRef = dbFirestore.collection("alunos").document(licensePlate); //faz a procura para achar placa do caro
+                            ApiFuture<DocumentSnapshot> future = docRef.get();
+
+                            try{
+                                DocumentSnapshot document = future.get();
+                                if (document.exists()){
+                                    docRef.update(dataStudent);
+                                }
+                                else{
+                                    System.out.println("Documento não encontrado para a placa: " + licensePlate);
+                                }
+                            } catch (Exception  e){
+                                e.printStackTrace();
+                            }
+
+                            String sanitizedFileName = licensePlate + "-" + data.format(formatter).replace("/", "-") + ".jpg";
+
+                            googleVisionService.uploadImageToGCS(
+                                    new MockMultipartFile("file", sanitizedFileName, "image/jpeg", imageBytes),
                                     bucketName
                             );
 
                             System.out.println("Placa detectada e processada: " + licensePlate);
                         } else {
-                            System.out.println("Placa duplicada detectada: " + licensePlate);
+                            System.out.println("Placa não encontrada na base de dados: " + licensePlate);
                         }
                     }
 
