@@ -14,7 +14,8 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Aluno {
-
+    //id temporario
+    //atributos do aluno, horario e imageUrl, são mutaveis, porem exite, nome, ra e curso
     @Id
     public int id;
 
