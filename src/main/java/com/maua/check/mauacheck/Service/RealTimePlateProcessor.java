@@ -5,6 +5,7 @@ import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.Firestore;
 import com.google.firebase.cloud.FirestoreClient;
 import com.maua.check.mauacheck.domain.entity.Aluno;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
@@ -32,11 +33,15 @@ public class RealTimePlateProcessor {
 
     DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss" , Locale.getDefault());
 
-    private final Set<String> processedHashes = new HashSet<>();
     private final GoogleVisionServiceImpl googleVisionService;
     private final LicensePlateServiceImpl licensePlateService;
     private boolean running = false;
+
+    @Getter
+    private String lastPlate; //variavel para ser usada no endpoint
+
     private boolean plateDetected = false;
+
 
     @Value("${gcp.bucket.name}")
     private String bucketName;
@@ -75,6 +80,8 @@ public class RealTimePlateProcessor {
 
                     if (licensePlate != null) {
 
+                        this.lastPlate = licensePlate; //variavel usada para ser lancada para endpoint
+
                         LocalDateTime data = LocalDateTime.now();
                         String horarioISO = data.atZone(ZoneId.of("America/Sao_Paulo")).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
                         OffsetDateTime offsetDateTime = OffsetDateTime.parse(horarioISO);
@@ -83,7 +90,8 @@ public class RealTimePlateProcessor {
                         String uniqueFileName = licensePlate + "_" + data.format(formatter) + ".jpg";
 
                         // Verifica se a placa já existe no bucket
-                        if (licensePlateService.checkIfLicensePlateExists(licensePlate)) {
+                        boolean imageLincensePlateExists = licensePlateService.checkIfImageExists(licensePlate);
+                        if (imageLincensePlateExists) {
                             licensePlateService.storeResponseInBucket(licensePlate);
 
                             String imageUrl = googleVisionService.uploadImageToGCS(
@@ -99,12 +107,11 @@ public class RealTimePlateProcessor {
                             dataStudent.put("horario", Student.getHorario());
                             dataStudent.put("imageUrl", Student.getImageUrl());
 
-                            //Altera os campos horario e imageUrl no firestore database
-                            Firestore dbFirestore = FirestoreClient.getFirestore(); //variavel que acessa o firebase
-                            var docRef = dbFirestore.collection("alunos").document(licensePlate); //faz a procura para achar placa do caro
-                            ApiFuture<DocumentSnapshot> future = docRef.get();
-
                             try{
+                                Firestore dbFirestore = FirestoreClient.getFirestore(); //variavel que acessa o firebase
+                                var docRef = dbFirestore.collection("alunos").document(licensePlate); //faz a procura para achar placa do caro
+                                ApiFuture<DocumentSnapshot> future = docRef.get();
+
                                 DocumentSnapshot document = future.get();
                                 if (document.exists()){
                                     docRef.update(dataStudent);
@@ -146,4 +153,5 @@ public class RealTimePlateProcessor {
     public void stopProcessing() {
         running = false;
     }
+
 }
