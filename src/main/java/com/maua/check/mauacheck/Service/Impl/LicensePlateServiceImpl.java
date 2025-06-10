@@ -10,7 +10,12 @@ import com.maua.check.mauacheck.Service.LicensePlateService;
 import com.maua.check.mauacheck.exception.RegraDeNegocioException;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 import java.io.StringReader;
 
@@ -108,5 +113,19 @@ public class LicensePlateServiceImpl implements LicensePlateService {
             }
         }
         return false;
+    }
+
+    @Override
+    public void sendLicensePlateEndPoint(String licensePlate) {
+        RestTemplate restTemplate = new RestTemplate();
+        String url = "http://localhost:8080/api/placa";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        HttpEntity<String> request = new HttpEntity<>(licensePlate, headers);
+
+        ResponseEntity<String> response = restTemplate.postForEntity(url, request, String.class);
+        System.out.println("Resposta da API: " + response.getBody());
     }
 }

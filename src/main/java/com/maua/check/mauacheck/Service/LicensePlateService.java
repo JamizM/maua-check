@@ -9,4 +9,6 @@ public interface LicensePlateService {
     void storeResponseInBucket(String licensePlate);
 
     boolean checkIfImageExists(String checkIfImageExists);
+
+    void sendLicensePlateEndPoint(String licensePlate);
 }
